@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+
+<html lang =  "ja">
+  <head>
+    <meta charset = "UTF-8">
+    <title>音声テスト</title>
+    <!-- cssの読み込み -->
+    <script src="https://code.jquery.com/jquery-2.0.3.min.js"></script>
+  </head>
+
+  <body>
+    <script type = "text/javascript" src = "{{url_for('static',filename = 'js/RecTest.js')}}">
+    </script>
+    <section id = "rechord" class = "note">
+      <h1>録音して文字起こしします<h1>
+      <input type = "button" id = "rec_btn" value = "録音を開始します" onClick = "startREC();" style = "display:block;"/>
+      <input type = "button" id = "stop_btn" value = "録音を停止します" onClick = "stopREC();" style = "display:none;"/>
+      <h3>文字起こし結果です↓<h3>
+    </section>
+  </body>
+</html>
+
