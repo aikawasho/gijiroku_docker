@@ -2,3 +2,100 @@ p {
     line-height: 1.5;
     margin-bottom: 2em;
 }
+
+#inputFile {
+    position: relative;
+    padding: 200px 0 100px;
+    text-align: center;
+}
+
+#dropArea {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 50%;
+    padding: 100px 0 0;
+    border: 2px dashed #494949;
+    background: rgba(22, 165, 191, 0);
+    transition: all 0.25s cubic-bezier(0.21, 0.51, 0.51, 1);
+}
+
+#dropArea.dragover {
+    border: 2px solid #16a5bf;
+    background: rgba(22, 165, 191, 0.6);
+}
+
+#uploadFile {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 10;
+    display: block;
+    width: 300px;
+    height: 80px;
+    opacity: 0;
+}
+
+#inputFileWrap {
+    position: relative;
+    display: inline-block;
+}
+
+#btnInputFile,
+#btnChangeFile {
+    display: table;
+    width: 300px;
+}
+
+#btnChangeFile {
+    display: none;
+}
+
+
+#btnInputFile span,
+#btnChangeFile span ,
+#rec_btn,
+#stop_btn{
+    position: relative;
+    z-index: 2;
+    display: table-cell;
+    width: 300px;
+    height: 80px;
+    border: 1px solid #333;
+    border-radius: 4px;
+    background: #333;
+    text-decoration: none;
+    color: #fff;
+    font-size: 26px;
+    line-height: 1;
+    font-weight: bold;
+    vertical-align: middle;
+}
+
+#upFileWrap.selected #btnInputFile {
+    display: none;
+}
+
+#upFileWrap.selected #btnChangeFile {
+    display: table;
+}
+
+#rechord{
+   display: flex;
+    padding: 10px 10px 10px;
+   }
+
+#mojioko{
+  width: 50%;
+  height: 100%;
+}
+
+#upFileWrap{
+  width: 50%;
+  height: 100%;
+}
+
+#SpeechText{
+  width: 80%;
+}

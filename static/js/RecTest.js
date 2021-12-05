@@ -145,14 +145,15 @@ function storeSpeech(WavFile,name) {
     let body = document.body
     let input = document.createElement("input");
     input.setAttribute("type", "text");
-    input.setAttribute("value", text); 
+    input.setAttribute("value", text);
+    input.id  = "SpeechText"; 
     body.appendChild(input);
     body.appendChild(audio);
     audio.appendChild(source);
     let select = document.createElement('select');
     select.setAttribute("name","type_label");
     select.size = "1";
-    select.setAttribute("multiple","");
+   // select.setAttribute("multiple","");
     var option_task = document.createElement("option");
     var option_none  = document.createElement("option");
     option_task.setAttribute("value", "タスク");
@@ -230,3 +231,77 @@ let exportWAV = function (audioData) {
           var url = myURL.createObjectURL(audioBlob);
           return url;
         };
+
+// ドラッグ&ドロップエリアの取得
+var fileArea = document.getElementById('dropArea');
+
+// input[type=file]の取得
+var fileInput = document.getElementById('uploadFile');
+
+// ドラッグオーバー時の処理
+fileArea.addEventListener('dragover', function(e){
+    e.preventDefault();
+    fileArea.classList.add('dragover');
+});
+
+// ドラッグアウト時の処理
+fileArea.addEventListener('dragleave', function(e){
+    e.preventDefault();
+    fileArea.classList.remove('dragover');
+});
+
+// ドロップ時の処理
+fileArea.addEventListener('drop', function(e){
+    e.preventDefault();
+    fileArea.classList.remove('dragover');
+
+    // ドロップしたファイルの取得
+    var files = e.dataTransfer.files;
+
+    // 取得したファイルをinput[type=file]へ
+    fileInput.files = files;
+    
+    if(typeof files[0] !== 'undefined') {
+        //ファイルが正常に受け取れた際の処理
+        FileUpload(files);
+    } else {
+        //ファイルが受け取れなかった際の処理
+    }
+});
+
+// input[type=file]に変更があれば実行
+// もちろんドロップ以外でも発火します
+fileInput.addEventListener('change', function(e){
+    var file = e.target.files[0];
+    
+    if(typeof e.target.files[0] !== 'undefined') {
+        // ファイルが正常に受け取れた際の処理
+
+        FileUpload(file)
+    } else {
+        // ファイルが受け取れなかった際の処理
+        console.log("ファイル受け取れない");
+    }
+}, false);
+
+function FileUpload(Files){
+     let data = new FormData();
+     data.append('upfile',Files[0],Files[0].name); 
+     var options = {
+                method : 'POST',
+                body :data}
+   
+     fetch("/fileUp",options).then(response => response.json()).then(response => displaySpeech(response['text'],response["type"],response["source"]));
+     
+}
+  function displaySpeech2(text) {
+    // Create object URLs out of the blobs
+    let body = document.body
+    let input = document.createElement("input");
+    input.setAttribute("type", "text");
+    input.setAttribute("value", text);
+    input.id  = "SpeechText"; 
+    body.appendChild(input);
+    body.appendChild(document.createElement("p")); 
+  }
+

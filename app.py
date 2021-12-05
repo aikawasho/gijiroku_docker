@@ -1,11 +1,12 @@
 #-*- coding: utf-8-*-
 import sys
+import os
 sys.path.append('/usr/local/lib64/python3.6/site-packages/')
 sys.path.append('/usr/local/lib/python3.6/site-packages/')
 sys.path.append('/var/www/app')
 import io,sys
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-from flask import Flask,render_template, send_from_directory,request,jsonify
+from flask import Flask,render_template, send_from_directory,request,jsonify,redirect, url_for
 import json
 import array
 import struct
@@ -15,7 +16,7 @@ import time
 from BertSum.server_BertSum.bert_summary import Bertsum_pred
 from tools.speech_t import speech_text
 import ssl
-
+from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 def raw2PCM(raw_floats):
@@ -54,11 +55,17 @@ if __name__ == "__main__":
     app.run()
 
 
-@app.route('/rec_data', methods=["POST"])
+@app.route('/fileUp',methods=["GET","POST"])
 def rec_data():
     print('ポストを受け取りました')
-    
-    return request.json
+    file_ob = request.files['upfile']
+    type_ = str(type(file_ob))
+    filename = secure_filename(file_ob.filename)
+    out_path = os.path.join("./wav", filename)
+    file_ob.save(out_path)
+    text,type_ = speech_text(out_path)
+    url =  url_for('uploaded_file',filename=filename)
+    return jsonify({"text":text,"type":type_,"source":url})
  
 @app.route('/music/<path:filename>')
 def download_file(filename):

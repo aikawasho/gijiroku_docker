@@ -5,18 +5,39 @@
     <meta charset = "UTF-8">
     <title>音声テスト</title>
     <!-- cssの読み込み -->
+    <link rel="stylesheet" type = "text/css" href="{{ url_for('static', filename='css/style.css') }}">
     <script src="https://code.jquery.com/jquery-2.0.3.min.js"></script>
   </head>
 
   <body>
+   <section id = "rechord" class = "note">
+     <div id = "mojioko">
+     <p> <h1>録音して文字起こしする↓<h1></p>
+     
+      <input type = "button" id = "rec_btn" value = "録音を開始" onClick = "startREC();" style = "display:block;"/>
+      <input type = "button" id = "stop_btn" value = "録音を停止" onClick = "stopREC();" style = "display:none;"/>
+     </div>
+     <div id="upFileWrap">
+       <p><h1>ファイルを文字起こししたい場合↓</h></p>
+       <div id="inputFile">
+           <!-- ドラッグ&ドロップエリア -->
+
+           <p id="dropArea">ここにファイルをドロップしてください<br>または</p>
+
+           <!-- 通常のinput[type=file] -->
+           <div id="inputFileWrap">
+              <input type="file" accept="audio/*" name="uploadFile" id="uploadFile">
+              <div id="btnInputFile"><span>ファイルを選択する</span></div>
+              <div id="btnChangeFile"><span>ファイルを変更する</span></div>
+          </div>
+      </div>
+    </div>
+
+    </section>
+  
+    <h3>文字起こし結果です↓<h3>
     <script type = "text/javascript" src = "{{url_for('static',filename = 'js/RecTest.js')}}">
     </script>
-    <section id = "rechord" class = "note">
-      <h1>録音して文字起こしします<h1>
-      <input type = "button" id = "rec_btn" value = "録音を開始します" onClick = "startREC();" style = "display:block;"/>
-      <input type = "button" id = "stop_btn" value = "録音を停止します" onClick = "stopREC();" style = "display:none;"/>
-      <h3>文字起こし結果です↓<h3>
-    </section>
   </body>
 </html>
 
