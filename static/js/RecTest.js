@@ -224,7 +224,7 @@ let exportWAV = function (audioData) {
             return samples;
           };
 
-          var dataview = encodeWAV(mergeBuffers(audioData), audioContext.sampleRate);
+          var dataview = encodeWAV(mergeBuffers(audioData), audio_sample_rate);
           var audioBlob = new Blob([dataview], { type: 'audio/wav' });
 
           var myURL = window.URL || window.webkitURL;
@@ -277,7 +277,7 @@ fileInput.addEventListener('change', function(e){
     if(typeof e.target.files[0] !== 'undefined') {
         // ファイルが正常に受け取れた際の処理
 
-        FileUpload(file)
+        FileUpload(file);
     } else {
         // ファイルが受け取れなかった際の処理
         console.log("ファイル受け取れない");
@@ -285,23 +285,98 @@ fileInput.addEventListener('change', function(e){
 }, false);
 
 function FileUpload(Files){
-     let data = new FormData();
-     data.append('upfile',Files[0],Files[0].name); 
-     var options = {
-                method : 'POST',
-                body :data}
-   
-     fetch("/fileUp",options).then(response => response.json()).then(response => displaySpeech(response['text'],response["type"],response["source"]));
-     
-}
-  function displaySpeech2(text) {
-    // Create object URLs out of the blobs
-    let body = document.body
-    let input = document.createElement("input");
-    input.setAttribute("type", "text");
-    input.setAttribute("value", text);
-    input.id  = "SpeechText"; 
-    body.appendChild(input);
-    body.appendChild(document.createElement("p")); 
+   //  let data = new FormData);
+    // data.append('upfile',Files[0],Files[0].name); 
+    const fileReader = new FileReader();
+
+    fileReader.onload = () => {
+
+    const view = new DataView(fileReader.result);
+    const samples = readWaveData(view) // DataViewから波形データを読み込む
+    console.log(samples);
+    
+    slen = samples.length;
+    index_max = Math.floor(slen/1024);
+    audioData = [];
+    for( let i = 0; i < index_max ; i ++){
+       
+          audioData.push(samples.slice(i*1024,(i+1)*1024));
+         if ( Math.max(...samples.slice(i*1024,(i+1)*1024)) > recThresh-0.1){
+              silentCount = 0; 
+        } else {
+              silentCount += 1;
+        
+              if ( silentCount > 50){
+                if (audioData.length > 52 ){
+                        SendData(audioData);
+                        console.log('audio send');
+                 }
+              
+              audioData = [];
+              console.log('reset count');
+              silentCount = 0; 
+         }      
+       }
+    }
+
   }
 
+    fileReader.readAsArrayBuffer(Files[0]);
+//    const view = new DataView(fileReader.result)
+     // const audioBlob = new Blob([view], { type: 'audio/wav' })
+     // const myURL = window.URL || window.webkitURL
+    // var options = {
+      //          method : 'POST',
+        //        body :data}
+   
+  //   fetch("/fileUp",options).then(response => response.json()).then(response => displaySpeech(response['text'],response["type"],response["source"]));
+     
+}
+  // 指定したバイト数分文字列として読み込む
+  const readString = (view, offset, length) => {
+    let text = ''
+    for (let i = 0; i < length; i++) {
+      text += String.fromCharCode(view.getUint8(offset + i))
+      console.log(text)
+    }
+    return text
+  }
+
+  // ビットレートが16bitのPCMとして読み込む
+  const read16bitPCM = (view, offset, length) => {
+    let input = []
+    let output = []
+    for (let i = 0; i < length / 2; i++) {
+      input[i] = view.getInt16(offset + i * 2, true)
+      output[i] = parseFloat(input[i]) / parseFloat(32768)
+      if (output[i] > 1.0) output[i] = 1.0
+      else if (output[i] < -1.0) output[i] = -1.0
+    }
+    return output
+  }
+
+  const readWaveData = view => {
+    const riffHeader = readString(view, 0, 4) // RIFFヘッダ
+    const fileSize = view.getUint32(4, true) // これ以降のファイルサイズ (ファイルサイズ - 8byte)
+    const waveHeader = readString(view, 8, 4) // WAVEヘッダ
+
+    const fmt = readString(view, 12, 4) // fmtチャンク
+    const fmtChunkSize = view.getUint32(16, true) // fmtチャンクのバイト数(デフォルトは16)
+    const fmtID = view.getUint16(20, true) // フォーマットID(非圧縮PCMなら1)
+    const channelNum = view.getUint16(22, true) // チャンネル数
+    audio_sample_rate = view.getUint32(24, true) // サンプリングレート
+    const dataSpeed = view.getUint32(28, true) // バイト/秒 1秒間の録音に必要なバイト数(サンプリングレート*チャンネル数*ビットレート/8)
+    const blockSize = view.getUint16(32, true) // ブロック境界、(ステレオ16bitなら16bit*2=4byte)
+    const bitRate = view.getUint16(34, true) // ビットレート
+
+    let exOffset = 0 //拡張パラメータ分のオフセット
+    if (fmtChunkSize > 16) {
+      const extendedSize = fmtChunkSize - 16 // 拡張パラメータのサイズ
+      exOffset = extendedSize
+    }
+    const data = readString(view, 36 + exOffset, 4) // dataチャンク
+    const dataChunkSize = view.getUint32(40 + exOffset, true) // 波形データのバイト数
+    const samples = read16bitPCM(view, 44 + exOffset, dataChunkSize + exOffset) // 波形データを受け取る
+
+    return samples
+  }
