@@ -1,4 +1,4 @@
-// for audioaaaaa
+// for audio
 var audio_sample_rate = null;
 var scriptProcessor = null;
 var audioContext = null;
@@ -6,9 +6,11 @@ var audioContext = null;
 var audioData = [];
 var bufferSize = 1024;
 var pushFrag = 0;
-var recThresh = 0.2;
+var recThresh = 0.1;
 var silentCount= 0;
-
+const audioLenTh = 22;
+const silentTh = 20;
+const MFCCTh = 2;
   // Create an instance of a db object for us to store our database in
 let db;
  
@@ -39,9 +41,10 @@ async function SendData(){
                 body : JSON.stringify(data)}
     const response = await fetch("/",options).then(response => response.json());
     console.log(response['text']);
-    
-    displaySpeech(response['text'],response['type'],url);
-     
+    console.log("score:%.2f",response["score"]);
+    if (response['text'] != "" || response['score'] > MFCCTh) { 
+         displaySpeech(response['text'],response['type'],url);
+    } 
    }
 
 
@@ -62,7 +65,7 @@ var onAudioProcess = function (e) {
         silentCount += 1;
         
          if ( silentCount > 50){
-                if (audioData.length > 55 ){
+                if (audioData.length > 51 ){
                         SendData(audioData);
                         console.log('audio send');
                  }
@@ -296,18 +299,26 @@ function FileUpload(Files){
     console.log(samples);
     
     slen = samples.length;
-    index_max = Math.floor(slen/1024);
+    index_max = Math.ceil(slen/1024);
     audioData = [];
+    var audioChunk;
     for( let i = 0; i < index_max ; i ++){
-       
-          audioData.push(samples.slice(i*1024,(i+1)*1024));
-         if ( Math.max(...samples.slice(i*1024,(i+1)*1024)) > recThresh-0.1){
+          if( i == index_max-1){
+                audioChunk = samples.slice(i*1024); 
+          }else{
+                audioChunk = samples.slice(i*1024,(i+1)*1024);
+               }
+        // console.log("Max of Cunk: %.4f", Math.max(...audioChunk));
+        // console.log("silentCount: %d", silentCount);
+        // console.log("aoudioLen: %d", audioData.length);
+         audioData.push(audioChunk);
+         if ( Math.max(...audioChunk) > recThresh){
               silentCount = 0; 
         } else {
               silentCount += 1;
         
-              if ( silentCount > 50){
-                if (audioData.length > 52 ){
+              if ( silentCount > silentTh){
+                if (audioData.length > audioLenTh ){
                         SendData(audioData);
                         console.log('audio send');
                  }
@@ -342,13 +353,13 @@ function FileUpload(Files){
     return text
   }
 
-  // ビットレートが16bitのPCMとして読み込む
-  const read16bitPCM = (view, offset, length) => {
+  // ビットレートに合わせてPCMとして読み込む
+  const read16bitPCM = (view, offset, length, bitRate) => {
     let input = []
     let output = []
     for (let i = 0; i < length / 2; i++) {
       input[i] = view.getInt16(offset + i * 2, true)
-      output[i] = parseFloat(input[i]) / parseFloat(32768)
+      output[i] = parseFloat(input[i]) / parseFloat(2**(bitRate-1))
       if (output[i] > 1.0) output[i] = 1.0
       else if (output[i] < -1.0) output[i] = -1.0
     }
@@ -362,13 +373,17 @@ function FileUpload(Files){
 
     const fmt = readString(view, 12, 4) // fmtチャンク
     const fmtChunkSize = view.getUint32(16, true) // fmtチャンクのバイト数(デフォルトは16)
+    console.log("fmtChunkSize:%d",fmtChunkSize);
     const fmtID = view.getUint16(20, true) // フォーマットID(非圧縮PCMなら1)
+    console.log("fmtID:%d",fmtID);
     const channelNum = view.getUint16(22, true) // チャンネル数
+    console.log("channleNum:%d",channelNum);
     audio_sample_rate = view.getUint32(24, true) // サンプリングレート
     const dataSpeed = view.getUint32(28, true) // バイト/秒 1秒間の録音に必要なバイト数(サンプリングレート*チャンネル数*ビットレート/8)
     const blockSize = view.getUint16(32, true) // ブロック境界、(ステレオ16bitなら16bit*2=4byte)
+    console.log("ブロック境界:%d",blockSize);
     const bitRate = view.getUint16(34, true) // ビットレート
-
+    console.log("ビットレート:%d",bitRate);
     let exOffset = 0 //拡張パラメータ分のオフセット
     if (fmtChunkSize > 16) {
       const extendedSize = fmtChunkSize - 16 // 拡張パラメータのサイズ
@@ -376,7 +391,7 @@ function FileUpload(Files){
     }
     const data = readString(view, 36 + exOffset, 4) // dataチャンク
     const dataChunkSize = view.getUint32(40 + exOffset, true) // 波形データのバイト数
-    const samples = read16bitPCM(view, 44 + exOffset, dataChunkSize + exOffset) // 波形データを受け取る
+    const samples = read16bitPCM(view, 44 + exOffset, dataChunkSize + exOffset,bitRate) // 波形データを受け取る
 
     return samples
   }
