@@ -48,10 +48,16 @@ feat_extractor = FeatureExtractor2(sample_frequency=sample_frequency, frame_leng
 mfcc_th = 3.0
 #基準となる音声の特徴量
 mfcc0 = feat_extractor.ComputeMFCC(compare_array[sample_frequency:sample_frequency*4])
-
+#要約文
+suma_texts = ""
+#タスク 
+task_texts = ""
+#全文
+all_texts = ""
 #コサイン類似度もとめる
 def cos_sim(v1, v2):
     return np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2))
+
 app = Flask(__name__)
 
 def raw2PCM(raw_floats):
@@ -64,7 +70,6 @@ def raw2PCM(raw_floats):
 
 #Flaskオブジェクトの生成
 app = Flask(__name__)
-#「/」へアクセスがあった場合に、"Hello World"の文字列を返す
 @app.route('/',methods = ['POST','GET'])
 def hello():
     if request.method == 'POST':
@@ -81,20 +86,39 @@ def hello():
         score = 0
         for frame in range(min(8,len(mfcc1[:,0]))):	
             score += cos_sim(mfcc0[frame,:],mfcc1[frame,:])
-            print("スコア:",score)
+         #   print("スコア:",score)
        
         wav_id = int(time.time())
         output_path =  "/var/www/app/wav/" + str(wav_id) + ".wav"
         siw.write(output_path, fs ,audioData)
         text,type_ = speech_text(output_path)
-        print('テキスト化')
-        print(text)
+      #  print('テキスト化')
+     #   print(text)
         return jsonify({"text": text,"type":type_, "file_name" : str(wav_id),"score":score} )
     return render_template('rec_test.html')
 
-if __name__ == "__main__":
-    app.run()
+@app.route('/summary',methods = ['POST'])
+def sumary():
+    result = request.get_json()
+    global suma_texts
+    global task_texts
+    global all_texts
+    all_texts = result['text']
+    task_texts = result['tasks']
+    suma_texts = ''
+    if all_texts:
+      suma_texts, scores,src = Bertsum_pred(all_texts)
+      print('summary complete')
+    suma_texts = '\n'.join(suma_texts)
+    return jsonify({"url": url_for('proceedings')} )
+   # return jsonify({"summary": suma,"scores":str(scores),"src":str(src)} )
 
+@app.route('/proceedings')
+def proceedings():
+    global suma_texts
+    global task_texts
+    global all_texts
+    return render_template('proc.html', summ=suma_texts,task = task_texts, allText = all_texts) 
 
 @app.route('/fileUp',methods=["GET","POST"])
 def rec_data():

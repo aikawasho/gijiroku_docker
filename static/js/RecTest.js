@@ -149,13 +149,14 @@ function storeSpeech(WavFile,name) {
     let input = document.createElement("input");
     input.setAttribute("type", "text");
     input.setAttribute("value", text);
-    input.id  = "SpeechText"; 
+    input.className  = "SpeechText"; 
     body.appendChild(input);
     body.appendChild(audio);
     audio.appendChild(source);
     let select = document.createElement('select');
     select.setAttribute("name","type_label");
     select.size = "1";
+    select.className = "SpeechType";
    // select.setAttribute("multiple","");
     var option_task = document.createElement("option");
     var option_none  = document.createElement("option");
@@ -169,7 +170,7 @@ function storeSpeech(WavFile,name) {
     option_none.appendChild( document.createTextNode("") );
     select.appendChild(option_none);
     select.appendChild(option_task);
-    body.appendChild(document.createElement("p")); 
+    body.appendChild(document.createElement("br")); 
     body.appendChild(select);
     body.appendChild(document.createElement("p"));
   }
@@ -395,3 +396,45 @@ function FileUpload(Files){
 
     return samples
   }
+
+function displayProc(){
+
+    var all_texts_list = document.getElementsByClassName("SpeechText");
+    var all_speech_type = document.getElementsByClassName("SpeechType");
+    var all_texts = "";
+    var all_tasks = "";
+    var tmpText 
+    for(var i=0;i<all_texts_list.length;i++){
+       //スペース削除
+       tmpText = all_texts_list[i].value.replace(/\s+/g, "");
+       if (tmpText != ""){    
+        all_texts += tmpText + "\n";
+        if (all_speech_type[i].value == "タスク"){
+                all_tasks += "・"+ tmpText + "\n";
+         }
+        }
+    }
+    var js_data = {'text':all_texts,'tasks':all_tasks}
+    var options = { 
+                method : 'POST',
+                headers : {"Content-Type" : "application/json"},
+                body : JSON.stringify(js_data)}
+  
+    var win = window.open("", "child", "width=400, height=300");
+    win.document.body.innerHTML = "loading...";
+    console.log(all_speech_type);
+
+    fetch("/summary",options).then(response => response.json()).then(function(response){
+      
+     win.location.href =  response["url"];
+  //   console.log(response["scores"])
+   //  console.log(response["src"])
+   //  let body = document.body
+    // let input = document.createElement("input");
+    // input.setAttribute("type", "text");
+    // input.setAttribute("value", sumtext);
+    // input.setAttribute("id", "SummaryText");
+    // body.appendChild(input);
+   });
+
+}

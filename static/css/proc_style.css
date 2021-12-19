@@ -1,0 +1,22 @@
+#TaskTexts,
+#AllTexts,
+#summaryTexts{
+   width: 80%;
+}
+
+#btn-export{
+    position: relative;
+    z-index: 2;
+    display: table-cell;
+    width: 500px;
+    height: 40px;
+    border: 1px solid #333;
+    border-radius: 4px;
+    background: #333;
+    text-decoration: none;
+    color: #fff;
+    font-size: 23px;
+    line-height: 1;
+    font-weight: bold;
+    vertical-align: middle;
+}
