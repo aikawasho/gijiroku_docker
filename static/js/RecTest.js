@@ -8,7 +8,7 @@ var bufferSize = 1024;
 var pushFrag = 0;
 var recThresh = 0.1;
 var silentCount= 0;
-const audioLenTh = 22;
+const audioLenTh = 50;
 const silentTh = 20;
 const MFCCTh = 2;
   // Create an instance of a db object for us to store our database in
@@ -294,43 +294,43 @@ function FileUpload(Files){
     const fileReader = new FileReader();
 
     fileReader.onload = () => {
-
-    const view = new DataView(fileReader.result);
-    const samples = readWaveData(view) // DataViewから波形データを読み込む
-    console.log(samples);
-    
-    slen = samples.length;
-    index_max = Math.ceil(slen/1024);
-    audioData = [];
+    let samples = []
     var audioChunk;
-    for( let i = 0; i < index_max ; i ++){
-          if( i == index_max-1){
-                audioChunk = samples.slice(i*1024); 
-          }else{
-                audioChunk = samples.slice(i*1024,(i+1)*1024);
-               }
-        // console.log("Max of Cunk: %.4f", Math.max(...audioChunk));
-        // console.log("silentCount: %d", silentCount);
-        // console.log("aoudioLen: %d", audioData.length);
-         audioData.push(audioChunk);
-         if ( Math.max(...audioChunk) > recThresh){
-              silentCount = 0; 
-        } else {
-              silentCount += 1;
-        
-              if ( silentCount > silentTh){
-                if (audioData.length > audioLenTh ){
-                        SendData(audioData);
-                        console.log('audio send');
+    const view = new DataView(fileReader.result);
+    const samples_list = readWaveData(view) // DataViewから波形データを読み込む
+    for(let j = 0; j<samples_list.length ; j++){   
+      samples = samples_list[j];
+      slen = samples.length;
+      index_max = Math.ceil(slen/1024);
+      audioData = [];
+      for( let i = 0; i < index_max ; i ++){
+            if( i == index_max-1){
+                  audioChunk = samples.slice(i*1024); 
+            }else{
+                  audioChunk = samples.slice(i*1024,(i+1)*1024);
                  }
+          // console.log("Max of Cunk: %.4f", Math.max(...audioChunk));
+          // console.log("silentCount: %d", silentCount);
+          // console.log("aoudioLen: %d", audioData.length);
+           audioData.push(audioChunk);
+           if ( Math.max(...audioChunk) > recThresh){
+                silentCount = 0; 
+           }else {
+                 silentCount += 1;
+        
+                 if ( silentCount > silentTh){
+                   if (audioData.length > audioLenTh ){
+                          SendData(audioData);
+                          console.log('audio send');
+                   }
               
-              audioData = [];
-              console.log('reset count');
-              silentCount = 0; 
-         }      
-       }
+                audioData = [];
+                console.log('reset count');
+                silentCount = 0; 
+           }      
+         }
+      }
     }
-
   }
 
     fileReader.readAsArrayBuffer(Files[0]);
@@ -355,16 +355,40 @@ function FileUpload(Files){
   }
 
   // ビットレートに合わせてPCMとして読み込む
-  const read16bitPCM = (view, offset, length, bitRate) => {
-    let input = []
-    let output = []
-    for (let i = 0; i < length / 2; i++) {
-      input[i] = view.getInt16(offset + i * 2, true)
-      output[i] = parseFloat(input[i]) / parseFloat(2**(bitRate-1))
-      if (output[i] > 1.0) output[i] = 1.0
-      else if (output[i] < -1.0) output[i] = -1.0
+  const read16bitPCM = (view, offset, length, bitRate,chunnelNum) => {
+    let input = [];
+    let output = [];
+    let output_list = [];
+    let chunkOffset = 0;
+    let step = 2;
+    const chunksize = 20000;
+    //最後のチャンクには余りを含める
+    const chunkNum = Math.floor(length/chunksize)-1;
+    if (chunnelNum == 2){
+        step = 4;
+        }
+    for (let j = 0; j < chunkNum; j++) { 
+      for (let i = 0; i < chunksize / step; i++) {
+        input[i] = view.getInt16(offset + chunkOffset + i * step, true)
+        output[i] = parseFloat(input[i]) / parseFloat(2**(bitRate-1))
+        if (output[i] > 1.0) output[i] = 1.0
+        else if (output[i] < -1.0) output[i] = -1.0
+      }
+      output_list.push(output);
+      chunkOffset += chunksize; 
     }
-    return output
+   output = []; 
+   //最後のチャンク
+   for (let i = chunkOffset; i < length / step; i++) {
+        input[i-chunkOffset] = view.getInt16(offset + i * step, true)
+        output[i-chunkOffset] = parseFloat(input[i-chunkOffset]) / parseFloat(2**(bitRate-1))
+        if (output[i-chunkOffset] > 1.0) output[i-chunkOffset] = 1.0 
+        else if (output[i-chunkOffset] < -1.0) output[i-chunkOffset] = -1.0
+      }   
+    output_list.push(output);
+    console.log(output_list.length);
+    console.log("ok");
+    return output_list
   }
 
   const readWaveData = view => {
@@ -390,10 +414,19 @@ function FileUpload(Files){
       const extendedSize = fmtChunkSize - 16 // 拡張パラメータのサイズ
       exOffset = extendedSize
     }
-    const data = readString(view, 36 + exOffset, 4) // dataチャンク
-    const dataChunkSize = view.getUint32(40 + exOffset, true) // 波形データのバイト数
-    const samples = read16bitPCM(view, 44 + exOffset, dataChunkSize + exOffset,bitRate) // 波形データを受け取る
-
+    let ChunkID;
+    let ChunkSize = 0;
+    let loopOffset = 0;
+    while (ChunkID != "data"){
+       ChunkID = readString(view, 36 + exOffset + loopOffset, 4) // チャンクID
+       ChunkSize = view.getUint32(40 + exOffset + loopOffset, true) // チャンクバイト数
+       loopOffset += 8 + ChunkSize
+        }
+    const samples = read16bitPCM(view, 36 + exOffset + loopOffset - ChunkSize, ChunkSize,bitRate, channelNum) // 波形データを受け取る
+   // const samples = 0;
+    console.log('ChunkSize : %d',ChunkSize);
+    const memory = navigator.deviceMemory;
+    console.log (`This device has at least ${memory}GiB of RAM.`);
     return samples
   }
 

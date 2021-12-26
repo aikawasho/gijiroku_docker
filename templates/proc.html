@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" type = "text/css" href="{{ url_for('static', filename='css/proc_style.css') }}">
+ 
+ <title>議事録</title>
+</head>
+<body>
+<div id="source-html">
+
+<h1>議事録</h1>
+<p><h2>重要事項</h2>
+<textarea id = "summaryTexts"  rows="5">
+{{ summ }}
+</textarea></p>
+
+<p><h2>タスク</h2>
+<textarea id = "TaskTexts"  rows="5">
+{{ task }}
+</textarea></p>
+
+<p><h2>全文</h2>
+<textarea id = "AllTexts"  rows="20">
+{{ allText }}
+</textarea></p>
+</div>
+<div class="content-footer">
+    <button id="btn-export" onclick="exportHTML();">.doc ファイルにエクスポート</button>
+</div>
+<script>
+    function exportHTML(){
+       var header = "<html xmlns:o='urn:schemas-microsoft-com:office:office' "+
+            "xmlns:w='urn:schemas-microsoft-com:office:word' "+
+            "xmlns='http://www.w3.org/TR/REC-html40'>"+
+            "<head><meta charset='utf-8'><title>Export HTML to Word Document with JavaScript</title></head><body>";
+       var footer = "</body></html>";
+       var sourceHTML = header+document.getElementById("source-html").innerHTML+footer;
+       
+       var source = 'data:application/vnd.ms-word;charset=utf-8,' + encodeURIComponent(sourceHTML);
+       var fileDownload = document.createElement("a");
+       document.body.appendChild(fileDownload);
+       fileDownload.href = source;
+       fileDownload.download = 'document.doc';
+       fileDownload.click();
+       document.body.removeChild(fileDownload);
+    }
+</script>
+
+</body>
+</html>
