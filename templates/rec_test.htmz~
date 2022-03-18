@@ -35,5 +35,7 @@
   
     <h3><h3>
     <script type = "text/javascript" src = "{{url_for('static',filename = 'js/RecTest.js')}}">
-    </script
+    </script>
+  </body>
+</html>
 

@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+
+<html lang =  "ja">
+  <head>
+    <meta charset = "UTF-8">
+    <title></title>
+    <link rel="stylesheet" type = "text/css" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://code.jquery.com/jquery-2.0.3.min.js"></script>
+  </head>
+
+  <body>
+   <section id = "rechord" class = "note">
+     <div id = "mojioko">
+     <p> <h1><h1></p>
+     
+      <input type = "button" id = "rec_btn" value = "録音を開始" onClick = "startREC();" style = "display:block;"/>
+      <input type = "button" id = "stop_btn" value = "録音を停止" onClick = "stopREC();" style = "display:none;"/>
+     <p> <input type = "button" id = "proc_btn" value = "議事録を作成" onClick = "displayProc();"/></p>
+     </div>
+     <div id="upFileWrap">
+       <div id="inputFile">
+
+               <p id="dropArea">ここにファイルをドロップしてください<br>または</p>
+
+           <div id="inputFileWrap">
+              <input type="file" accept="audio/*" name="uploadFile" id="uploadFile">
+              <div id="btnInputFile"><span>ファイルを選択する</span></div>
+              <div id="btnChangeFile"><span>ファイルを変更する</span></div>
+          </div>
+      </div>
+    </div>
+
+    </section>
+  
+    <h3><h3>
+                    <script type = "text/javascript" src = "{{url_for('static',filename = 'js/RecTest.js')}}"></script>

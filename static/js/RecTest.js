@@ -6,16 +6,84 @@ var audioContext = null;
 var audioData = [];
 var bufferSize = 1024;
 var pushFrag = 0;
-var recThresh = 0.1;
+var LoudThresh = 0.12;
 var silentCount= 0;
 const audioLenTh = 50;
 const silentTh = 20;
-const MFCCTh = 2;
-  // Create an instance of a db object for us to store our database in
+const MFCC_Thresh = 2;
+const SilentThresh = 50;
+const AudioLengthThresh  =51; 
+
+  // dbにあるかチェックするテキスト (今後修正して事前に定義不要にする予定)
+  const speechs = [
+    { "text" : "浅野朋美です。" },
+   {"text": "今日の東京株式市場で日経平均株価は 小幅続伸 となっています 終値は昨日に比べ 22円72 銭高の11088円 58銭でした。" },
+   {"text" : "東証一部の値上がり銘柄数は1146対して値下がりは368 変わらずは 104 銘柄 となっています。"}
+  ];
+  // dbオブジェクトの作成
 let db;
- 
+
+window.onload = function() {
+//dbにテキストがあるかどうかチェック
+function init() {
+  // Loop through the video names one by one
+  for(let i = 0; i < speechs.length; i++) {
+    // Open transaction, get object store, and get() each video by name
+    let objectStore = db.transaction('speechs_os').objectStore('speechs_os');
+    let request = objectStore.get(speechs[i].text);
+    request.onsuccess = function() {
+      // If the result exists in the database (is not undefined)
+      if(request.result) {
+        // dbにテキストがあれば表示する. ※まだ音声データを読み込むことができていない
+        console.log('taking speechss from IDB');
+        let url = exportWAV(request.result.audioData);
+        audio_sample_rate = request.result.fs;
+        displaySpeech(request.result.text,request.result._type, url);
+      } else {
+        // Fetch the videos from the network
+        console.log("not exist")
+      }
+    };
+  }
+}
+
+  // Open our database; it is created if it doesn't already exist
+  // (see onupgradeneeded below)
+  let request = window.indexedDB.open('audios_db', 1);
+
+  // onerror handler signifies that the database didn't open successfully
+  request.onerror = function() {
+    console.log('Database failed to open');
+  };
+
+  // onsuccess handler signifies that the database opened successfully
+  request.onsuccess = function() {
+    console.log('Database opened succesfully');
+
+    // Store the opened database object in the db variable. This is used a lot below
+    db = request.result;
+    init();
+  };
+
+  // Setup the database tables if this has not already been done
+  request.onupgradeneeded = function(e) {
+
+    // Grab a reference to the opened database
+    let db = e.target.result;
+
+    // Create an objectStore to store our videos in (basically like a single table)
+    // including a auto-incrementing keyaudioDataui
+    let objectStore = db.createObjectStore('speechs_os', { keyPath: 'text' });
+
+    // Define what data items the objectStore will contain
+    objectStore.createIndex('wav', 'wav', { unique: false });
+
+    console.log('Database setup complete');
+  };
+};
 
 async function SendData(){
+      //ステレオやモノラルのデータを一つの配列samplesに格納
       let mergeBuffers = function (audioData) {
         let sampleLength = 0;
         for (let i = 0; i < audioData.length; i++) {
@@ -31,9 +99,10 @@ async function SendData(){
         }
         return samples;
       };
-     
+     //samplesはサーバーに送信urlはクライアント側で使う
      samples = mergeBuffers(audioData);
      let url = exportWAV(audioData);
+     const AD = audioData;
      data = {'fs':audio_sample_rate,'samples':samples}
      var options = {
                 method : 'POST',
@@ -42,12 +111,30 @@ async function SendData(){
     const response = await fetch("/",options).then(response => response.json());
     console.log(response['text']);
     console.log("score:%.2f",response["score"]);
-    if (response['text'] != "" || response['score'] > MFCCTh) { 
+    if (response['text'] != "" || response['score'] > MFCC_Thresh) {
+         //テキスト, タイプと音声を表示
          displaySpeech(response['text'],response['type'],url);
+
+         //テキストデータ, タイプ, audioDataをdbに保存
+         storeSpeech(response['text'],response['type'],audioData,AD)
     } 
    }
 
-
+async function SendData2() {
+     let url = exportWAV(audioData);
+     data = {'fs':audio_sample_rate,'samples':audioData}
+     var options = { 
+                method : 'POST',
+                headers : {"Content-Type" : "application/json"},
+                body : JSON.stringify(data)}
+    const response = await fetch("/",options).then(response => response.json());
+    console.log(response['text']);
+    console.log("score:%.2f",response["score"]);
+    if (response['text'] != "" || response['score'] > MFCCTh) { 
+         displaySpeech(response['text'],response['type'],url);
+    }   
+   }   
+//webAudioAPIを使った録音
 var onAudioProcess = function (e) {
   var input = e.inputBuffer.getChannelData(0);
   var bufferData = new Float32Array(1024);
@@ -57,15 +144,15 @@ var onAudioProcess = function (e) {
              
         audioData.push(bufferData);
         
-        if ( Math.max(...bufferData) > recThresh){
+        if ( Math.max(...bufferData) > LoudThresh){
       //        console.log('MAX');
               silentCount = 0; 
         } else {
        // console.log(typeof silentCount);
         silentCount += 1;
         
-         if ( silentCount > 50){
-                if (audioData.length > 51 ){
+         if ( silentCount > SilentThresh){
+                if (audioData.length > audioMIN ){
                         SendData(audioData);
                         console.log('audio send');
                  }
@@ -105,37 +192,9 @@ function stopREC(){
   console.log('send audio');
  }
 
-function availableData( arr ){
-  var b = false;
-  for( var i = 0; i < arr.length && !b; i ++ ){
-    b = ( arr[i] != 0 );
-  }
-}
 
-  // Define the storeVideo() function
-function storeSpeech(WavFile,name) {
-  // Open transaction, get object store; make it a readwrite so we can write to the IDB
-  let objectStore = db.transaction(['speechs_os'], 'readwrite').objectStore('speechs_os');
-  // Create a record to add to the IDB
-  let record = {
-    wav : WavFile,
-    name : name
-  }
 
-  // Add the record to the IDB using add()
-  let request = objectStore.add(record);
-
-  request.onsuccess = function() {
-    console.log('Record addition attempt finished');
-  }
-
-  request.onerror = function() {
-    console.log(request.error);
-  }
-
-};
-
-  // Define the displayVideo() function
+  // テキスト, タイプ, 音声の表示, 
   function displaySpeech(text,type,url) {
     // Create object URLs out of the blobs
     const audio = document.createElement('audio');
@@ -276,12 +335,12 @@ fileArea.addEventListener('drop', function(e){
 // input[type=file]に変更があれば実行
 // もちろんドロップ以外でも発火します
 fileInput.addEventListener('change', function(e){
-    var file = e.target.files[0];
+    var files = e.target.files;
     
-    if(typeof e.target.files[0] !== 'undefined') {
+    if(typeof files[0] !== 'undefined') {
         // ファイルが正常に受け取れた際の処理
 
-        FileUpload(file);
+        FileUpload(files);
     } else {
         // ファイルが受け取れなかった際の処理
         console.log("ファイル受け取れない");
@@ -298,41 +357,7 @@ function FileUpload(Files){
     var audioChunk;
     const view = new DataView(fileReader.result);
     const samples_list = readWaveData(view) // DataViewから波形データを読み込む
-    for(let j = 0; j<samples_list.length ; j++){   
-      samples = samples_list[j];
-      slen = samples.length;
-      index_max = Math.ceil(slen/1024);
-      audioData = [];
-      for( let i = 0; i < index_max ; i ++){
-            if( i == index_max-1){
-                  audioChunk = samples.slice(i*1024); 
-            }else{
-                  audioChunk = samples.slice(i*1024,(i+1)*1024);
-                 }
-          // console.log("Max of Cunk: %.4f", Math.max(...audioChunk));
-          // console.log("silentCount: %d", silentCount);
-          // console.log("aoudioLen: %d", audioData.length);
-           audioData.push(audioChunk);
-           if ( Math.max(...audioChunk) > recThresh){
-                silentCount = 0; 
-           }else {
-                 silentCount += 1;
-        
-                 if ( silentCount > silentTh){
-                   if (audioData.length > audioLenTh ){
-                          SendData(audioData);
-                          console.log('audio send');
-                   }
-              
-                audioData = [];
-                console.log('reset count');
-                silentCount = 0; 
-           }      
-         }
-      }
-    }
-  }
-
+   }
     fileReader.readAsArrayBuffer(Files[0]);
 //    const view = new DataView(fileReader.result)
      // const audioBlob = new Blob([view], { type: 'audio/wav' })
@@ -358,12 +383,13 @@ function FileUpload(Files){
   const read16bitPCM = (view, offset, length, bitRate,chunnelNum) => {
     let input = [];
     let output = [];
-    let output_list = [];
     let chunkOffset = 0;
     let step = 2;
-    const chunksize = 20000;
+    silentCount = 0;
+    const chunksize =2000;
     //最後のチャンクには余りを含める
     const chunkNum = Math.floor(length/chunksize)-1;
+    audioData = [];
     if (chunnelNum == 2){
         step = 4;
         }
@@ -374,10 +400,29 @@ function FileUpload(Files){
         if (output[i] > 1.0) output[i] = 1.0
         else if (output[i] < -1.0) output[i] = -1.0
       }
-      output_list.push(output);
+      audioData.push(output);
       chunkOffset += chunksize; 
+      if ( Math.max(...output) > LoudThresh){
+              silentCount = 0;
+        } else {
+       // console.log(typeof silentCount);
+        silentCount += 1;
+
+         if ( silentCount > SilentThresh){
+                if (audioData.length > AudioLengthThresh){
+                        SendData();
+                        console.log('audio send');
+                       // console.log(audioData);
+                 }
+
+              audioData = [];
+             console.log('reset count');
+              silentCount = 0;
+         }
+       }
+     
+      output = []
     }
-   output = []; 
    //最後のチャンク
    for (let i = chunkOffset; i < length / step; i++) {
         input[i-chunkOffset] = view.getInt16(offset + i * step, true)
@@ -385,11 +430,31 @@ function FileUpload(Files){
         if (output[i-chunkOffset] > 1.0) output[i-chunkOffset] = 1.0 
         else if (output[i-chunkOffset] < -1.0) output[i-chunkOffset] = -1.0
       }   
-    output_list.push(output);
-    console.log(output_list.length);
+    audioData.push(output);
+        if ( Math.max(...output) > LoudThresh){
+      //        console.log('MAX');
+              silentCount = 0;
+        } else {
+       // console.log(typeof silentCount);
+        silentCount += 1;
+
+         if ( silentCount > SilentThresh){
+                if (audioData.length > AudioLengthThresh ){
+                        SendData();
+                        console.log('audio send');
+                 }
+
+              audioData = [];
+             console.log('reset count');
+              silentCount = 0;
+         } 
+       }
+
+
     console.log("ok");
-    return output_list
+    return "ok"
   }
+
 
   const readWaveData = view => {
     const riffHeader = readString(view, 0, 4) // RIFFヘッダ
@@ -423,10 +488,6 @@ function FileUpload(Files){
        loopOffset += 8 + ChunkSize
         }
     const samples = read16bitPCM(view, 36 + exOffset + loopOffset - ChunkSize, ChunkSize,bitRate, channelNum) // 波形データを受け取る
-   // const samples = 0;
-    console.log('ChunkSize : %d',ChunkSize);
-    const memory = navigator.deviceMemory;
-    console.log (`This device has at least ${memory}GiB of RAM.`);
     return samples
   }
 
@@ -453,7 +514,7 @@ function displayProc(){
                 headers : {"Content-Type" : "application/json"},
                 body : JSON.stringify(js_data)}
   
-    var win = window.open("", "child", "width=400, height=300");
+    var win = window.open("", "child", "width=1200, height=900");
     win.document.body.innerHTML = "loading...";
     console.log(all_speech_type);
 
@@ -471,3 +532,29 @@ function displayProc(){
    });
 
 }
+
+  // Define the storeVideo() function
+function storeSpeech(Text,Type,AudioData,audio_sample_rate) {
+  // Open transaction, get object store; make it a readwrite so we can write to the IDB
+  let objectStore = db.transaction(['speechs_os'], 'readwrite').objectStore('speechs_os');
+  // Create a record to add to the IDB
+  let record = {
+    text : Text,
+    _type : Type,
+    audioData :AudioData,
+    fs : audio_sample_rate
+  }
+
+  // Add the record to the IDB using add()
+  let request = objectStore.add(record);
+
+  request.onsuccess = function() {
+    console.log('Record addition attempt finished');
+  }
+
+  request.onerror = function() {
+    console.log(request.error);
+  }
+
+};
+

@@ -95,7 +95,7 @@ def hello():
       #  print('テキスト化')
      #   print(text)
         return jsonify({"text": text,"type":type_, "file_name" : str(wav_id),"score":score} )
-    return render_template('rec_test.html')
+    return render_template('rec_temp.html')
 
 @app.route('/summary',methods = ['POST'])
 def sumary():
